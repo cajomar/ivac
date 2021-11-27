@@ -62,12 +62,12 @@ static GLuint compile_shader(GLenum type, const char* const source) {
 
 static GLuint get_shader() {
     const char* const vertex_source = "#version 430 core\n"
-                                      "in vec3 pos;\n"
+                                      "in vec2 pos;\n"
                                       "in vec2 v_uv;\n"
                                       "out vec2 uv;\n"
                                       "void main() {\n"
                                       "    uv = v_uv;\n"
-                                      "    gl_Position = vec4(pos, 1.0);\n"
+                                      "    gl_Position = vec4(pos, 0.0, 1.0);\n"
                                       "}\n";
 
     GLuint vertex_shader = compile_shader(GL_VERTEX_SHADER, vertex_source);
@@ -106,32 +106,6 @@ static GLuint get_shader() {
     return program;
 }
 
-static void get_quad(GLuint* vbo, GLuint* vao) {
-    const float quad_verts[4][5] = {
-        // xyzuv
-        {-1, 1, 0, 0, 1},
-        {-1, -1, 0, 0, 0},
-        {1, 1, 0, 1, 1},
-        {1, -1, 0, 1, 0},
-    };
-    glGenVertexArrays(1, vao);
-    glGenBuffers(1, vbo);
-
-    glBindVertexArray(*vao);
-    glBindBuffer(GL_ARRAY_BUFFER, *vao);
-
-    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 20, quad_verts,
-                 GL_STATIC_DRAW);
-
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float),
-                          (void*)0);
-
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float),
-                          (void*)(3 * sizeof(float)));
-}
-
 static GLint bpp_to_gl_image_format(unsigned int bpp) {
     switch (bpp) {
     case 4:
@@ -147,19 +121,47 @@ static GLint bpp_to_gl_image_format(unsigned int bpp) {
     }
 }
 
-static GLuint get_texture(const uint8_t* data,
-                          unsigned int w,
-                          unsigned int h,
-                          unsigned int c) {
+static GLuint create_texture(unsigned int w,
+                             unsigned int h,
+                             unsigned int c,
+                             const uint8_t* data) {
 
     GLuint tex;
     glGenTextures(1, &tex);
     glBindTexture(GL_TEXTURE_2D, tex);
     GLint fmt = bpp_to_gl_image_format(c);
-    glTexImage2D(GL_TEXTURE_2D, 0, fmt, w, h, 0, fmt, GL_UNSIGNED_BYTE, data);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    if (data) {
+        glTexImage2D(GL_TEXTURE_2D, 0, fmt, w, h, 0, fmt, GL_UNSIGNED_BYTE,
+                     data);
+    }
     return tex;
+}
+
+static void gen_quad(int image_width, int image_height) {
+    float quad_verts[4][4] = {
+        // xyuv
+        {-1, +1, 0, 1},
+        {-1, -1, 0, 0},
+        {+1, +1, 1, 1},
+        {+1, -1, 1, 0},
+    };
+    const float image_aspect = image_width / (float)image_height;
+    const float viewport_aspect = viewport[0] / (float)viewport[1];
+    const float aspect_diff = viewport_aspect - image_aspect;
+
+    if (aspect_diff > 0) {
+        for (int i = 0; i < 4; ++i) {
+            quad_verts[i][0] *= image_aspect / viewport_aspect;
+        }
+    } else if (aspect_diff < 0) {
+        for (int i = 0; i < 4; ++i) {
+            quad_verts[i][1] *= 1 / image_aspect * viewport_aspect;
+        }
+    }
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 16, quad_verts,
+                 GL_DYNAMIC_DRAW);
 }
 
 static GLFWwindow* setup_glfw(int image_width, int image_height) {
@@ -228,27 +230,47 @@ int main(int argc, const char** argv) {
 
     glViewport(0, 0, viewport[0], viewport[1]);
 
-    GLuint vbo, vao;
-    get_quad(&vbo, &vao);
+    GLuint vao;
+    GLuint vbo;
+    {
+        glGenVertexArrays(1, &vao);
+        glGenBuffers(1, &vbo);
+
+        glBindVertexArray(vao);
+        glBindBuffer(GL_ARRAY_BUFFER, vao);
+
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
+                              (void*)0);
+
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
+                              (void*)(2 * sizeof(float)));
+    }
 
     GLuint shader = get_shader();
     glUseProgram(shader);
 
-    GLuint tex = get_texture(data, w, h, c);
+    GLuint tex = create_texture(w, h, c, data);
     stbi_image_free(data);
 
     glClearColor(0, 0, 0, 0);
 
     while (!glfwWindowShouldClose(win)) {
-        glfwPollEvents();
+        glfwWaitEvents();
         if (dirty) {
             dirty = false;
             glClear(GL_COLOR_BUFFER_BIT);
-            glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+            {
+                glBindVertexArray(vao);
+                gen_quad(w, h);
+                glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+            }
             glfwSwapBuffers(win);
         }
     }
 
+    glDeleteTextures(1, &tex);
     glDeleteProgram(shader);
     glDeleteVertexArrays(1, &vao);
     glDeleteBuffers(1, &vbo);
