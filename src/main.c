@@ -11,9 +11,18 @@
 
 #define FATAL_ERROR(...) fprintf(stderr, "Error: " __VA_ARGS__)
 
-int viewport[2];
+double viewport[2];
 bool dirty = true;
-float zoom = 1.f;
+double zoom = 1.0;
+double scroll_x = 0.0;
+double scroll_y = 0.0;
+double cursor_x = 0.0;
+double cursor_y = 0.0;
+
+static void pixel_to_gl_screen(double x, double y, double* _x, double* _y) {
+    *_x = x / viewport[0] * 2 - 1;
+    *_y = -(y / viewport[1] * 2 - 1);
+}
 
 static void window_resize_callback(GLFWwindow* window, int w, int h) {
     dirty = true;
@@ -22,25 +31,40 @@ static void window_resize_callback(GLFWwindow* window, int w, int h) {
     glViewport(0, 0, w, h);
 }
 
-void scroll_callback(GLFWwindow* window, double x, double y) {
+static void scroll_callback(GLFWwindow* window, double x, double y) {
     dirty = true;
-    zoom += zoom * y * 0.1f;
-
+    zoom += zoom * y * 0.3f;
     if (zoom < 0.01) {
         zoom = 0.01;
     }
 }
 
-void error_callback(int code, const char* description) {
+static void mouse_motion_callback(GLFWwindow* window, double x, double y) {
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+        dirty = true;
+
+        double cx, cy, px, py;
+        pixel_to_gl_screen(cursor_x, cursor_y, &cx, &cy);
+        pixel_to_gl_screen(x, y, &px, &py);
+
+        scroll_x += (px - cx) * 1;
+        scroll_y += (py - cy) * 1;
+    }
+    cursor_x = x;
+    cursor_y = y;
+}
+
+static void error_callback(int code, const char* description) {
     fprintf(stderr, "GLFW Error %d: %s\n", code, description);
 }
-void GLAPIENTRY message_callback(GLenum source,
-                                 GLenum type,
-                                 GLuint id,
-                                 GLenum severity,
-                                 GLsizei length,
-                                 const GLchar* message,
-                                 const void* userParam) {
+
+static void GLAPIENTRY message_callback(GLenum source,
+                                        GLenum type,
+                                        GLuint id,
+                                        GLenum severity,
+                                        GLsizei length,
+                                        const GLchar* message,
+                                        const void* userParam) {
     fprintf(stderr,
             "GL CALLBACK: %s source = 0x%x, type = 0x%x, severity = 0x%x, "
             "message = %s\n",
@@ -157,9 +181,9 @@ static void gen_quad(int image_width, int image_height) {
         {+1, +1, 1, 1},
         {+1, -1, 1, 0},
     };
-    const float image_aspect = image_width / (float)image_height;
-    const float viewport_aspect = viewport[0] / (float)viewport[1];
-    const float aspect_diff = viewport_aspect - image_aspect;
+    const double image_aspect = image_width / (double)image_height;
+    const double viewport_aspect = viewport[0] / viewport[1];
+    const double aspect_diff = viewport_aspect - image_aspect;
 
     if (aspect_diff > 0) {
         for (int i = 0; i < 4; ++i) {
@@ -173,6 +197,9 @@ static void gen_quad(int image_width, int image_height) {
     for (int i = 0; i < 4; ++i) {
         quad_verts[i][0] *= zoom;
         quad_verts[i][1] *= zoom;
+
+        quad_verts[i][0] += scroll_x;
+        quad_verts[i][1] += scroll_y;
     }
     glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 16, quad_verts,
                  GL_DYNAMIC_DRAW);
@@ -234,6 +261,8 @@ int main(int argc, const char** argv) {
         stbi_image_free(data);
         return -1;
     }
+
+    glfwSetCursorPosCallback(win, mouse_motion_callback);
     glfwSetFramebufferSizeCallback(win, window_resize_callback);
     glfwSetScrollCallback(win, scroll_callback);
 
