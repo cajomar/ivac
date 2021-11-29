@@ -6,6 +6,7 @@
 #include "stb_image.h"
 
 #include "shader.h"
+#include "vertex_object.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -141,7 +142,7 @@ static GLuint create_texture(unsigned int w,
     return tex;
 }
 
-static void gen_quad(int image_width, int image_height) {
+static void build_image_buffer(int image_width, int image_height, GLuint vbo) {
     float quad_verts[4][4] = {
         // xyuv
         {-1, +1, 0, 1},
@@ -166,8 +167,10 @@ static void gen_quad(int image_width, int image_height) {
             quad_verts[i][1] *= 1 / image_aspect * viewport_aspect;
         }
     }
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 16, quad_verts,
                  GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 static GLFWwindow* setup_glfw(int image_width, int image_height) {
@@ -239,26 +242,20 @@ int main(int argc, const char** argv) {
 
     glViewport(0, 0, viewport[0], viewport[1]);
 
-    GLuint vao;
-    GLuint vbo;
+    VertexObject image;
     {
-        glGenVertexArrays(1, &vao);
-        glGenBuffers(1, &vbo);
-
-        glBindVertexArray(vao);
-        glBindBuffer(GL_ARRAY_BUFFER, vao);
-
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
-                              (void*)0);
-
-        glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
-                              (void*)(2 * sizeof(float)));
+        GLenum types[] = {
+            GL_FLOAT,
+            GL_FLOAT,
+        };
+        uint8_t counts[] = {
+            2,
+            2,
+        };
+        vertex_object_init(&image, 2, types, counts);
     }
 
-    GLuint shader = get_shader();
-    glUseProgram(shader);
+    GLuint image_shader = get_image_shader();
 
     GLuint tex = create_texture(w, h, c, data);
     stbi_image_free(data);
@@ -271,18 +268,19 @@ int main(int argc, const char** argv) {
             dirty = false;
             glClear(GL_COLOR_BUFFER_BIT);
             {
-                glBindVertexArray(vao);
-                gen_quad(w, h);
+                glUseProgram(image_shader);
+                glBindVertexArray(image.vao);
+                build_image_buffer(w, h, image.vbo);
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+                glBindVertexArray(0);
             }
             glfwSwapBuffers(win);
         }
     }
 
     glDeleteTextures(1, &tex);
-    glDeleteProgram(shader);
-    glDeleteVertexArrays(1, &vao);
-    glDeleteBuffers(1, &vbo);
+    glDeleteProgram(image_shader);
+    vertex_object_deinit(&image);
 
     return 0;
 }

@@ -5,6 +5,7 @@ add_executable(ivac
     src/gl_core_4_3.c
     src/main.c
     src/shader.c
+    src/vertex_object.c
     )
 target_link_libraries(ivac glfw)
 
