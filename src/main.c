@@ -5,11 +5,11 @@
 #define STBI_FAILURE_USERMSG
 #include "stb_image.h"
 
+#include "shader.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
-
-#define FATAL_ERROR(...) fprintf(stderr, "Error: " __VA_ARGS__)
 
 double viewport[2];
 bool dirty = true;
@@ -87,28 +87,6 @@ static void GLAPIENTRY message_callback(GLenum source,
             severity, message);
 }
 
-static GLuint compile_shader(GLenum type, const char* const source) {
-    GLuint shader = glCreateShader(type);
-    glShaderSource(shader, 1, &source, NULL);
-    glCompileShader(shader);
-
-    int success;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        int len;
-        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &len);
-        char* log = malloc(len);
-        if (log == NULL) {
-            FATAL_ERROR("malloc failed\n");
-        } else {
-            glGetShaderInfoLog(shader, len, NULL, log);
-            FATAL_ERROR("failed to compile shader: %s\n", log);
-            free(log);
-        }
-    }
-    return shader;
-}
-
 static GLuint get_shader() {
     const char* const vertex_source = "#version 430 core\n"
                                       "in vec2 pos;\n"
@@ -119,8 +97,6 @@ static GLuint get_shader() {
                                       "    gl_Position = vec4(pos, 0.0, 1.0);\n"
                                       "}\n";
 
-    GLuint vertex_shader = compile_shader(GL_VERTEX_SHADER, vertex_source);
-
     const char* fragment_source = "#version 430 core\n"
                                   "in vec2 uv;\n"
                                   "out vec4 frag_color;\n"
@@ -128,31 +104,8 @@ static GLuint get_shader() {
                                   "void main() {\n"
                                   "    frag_color = texture(tex, uv);\n"
                                   "}\n";
-    GLuint fragment_shader =
-        compile_shader(GL_FRAGMENT_SHADER, fragment_source);
 
-    GLuint program = glCreateProgram();
-    glAttachShader(program, vertex_shader);
-    glAttachShader(program, fragment_shader);
-    glLinkProgram(program);
-
-    int success;
-    glGetProgramiv(program, GL_LINK_STATUS, &success);
-    if (!success) {
-        int len;
-        glGetProgramiv(program, GL_INFO_LOG_LENGTH, &len);
-        char* log = malloc(len);
-        if (log == NULL) {
-            FATAL_ERROR("malloc failed\n");
-        } else {
-            glGetProgramInfoLog(program, len, NULL, log);
-            FATAL_ERROR("failed link shader program: %s\n", log);
-            free(log);
-        }
-    }
-    glDeleteShader(vertex_shader);
-    glDeleteShader(fragment_shader);
-    return program;
+    return shader_new(vertex_source, fragment_source);
 }
 
 static GLint bpp_to_gl_image_format(unsigned int bpp) {

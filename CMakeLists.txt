@@ -1,7 +1,11 @@
 cmake_minimum_required(VERSION 3.13)
 project(IVAC)
 
-add_executable(ivac src/main.c src/gl_core_4_3.c)
+add_executable(ivac
+    src/gl_core_4_3.c
+    src/main.c
+    src/shader.c
+    )
 target_link_libraries(ivac glfw)
 
 if (WIN32)
