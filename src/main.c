@@ -13,12 +13,22 @@
 
 int viewport[2];
 bool dirty = true;
+float zoom = 1.f;
 
 static void window_resize_callback(GLFWwindow* window, int w, int h) {
+    dirty = true;
     viewport[0] = w;
     viewport[1] = h;
     glViewport(0, 0, w, h);
+}
+
+void scroll_callback(GLFWwindow* window, double x, double y) {
     dirty = true;
+    zoom += zoom * y * 0.1f;
+
+    if (zoom < 0.01) {
+        zoom = 0.01;
+    }
 }
 
 void error_callback(int code, const char* description) {
@@ -160,6 +170,10 @@ static void gen_quad(int image_width, int image_height) {
             quad_verts[i][1] *= 1 / image_aspect * viewport_aspect;
         }
     }
+    for (int i = 0; i < 4; ++i) {
+        quad_verts[i][0] *= zoom;
+        quad_verts[i][1] *= zoom;
+    }
     glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 16, quad_verts,
                  GL_DYNAMIC_DRAW);
 }
@@ -221,6 +235,7 @@ int main(int argc, const char** argv) {
         return -1;
     }
     glfwSetFramebufferSizeCallback(win, window_resize_callback);
+    glfwSetScrollCallback(win, scroll_callback);
 
     printf("OpenGL %s GLSL %s\n", glGetString(GL_VERSION),
            glGetString(GL_SHADING_LANGUAGE_VERSION));
