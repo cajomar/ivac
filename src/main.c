@@ -200,6 +200,13 @@ static void gen_quad(int image_width, int image_height) {
     const double viewport_aspect = viewport[0] / viewport[1];
     const double aspect_diff = viewport_aspect - image_aspect;
 
+    for (int i = 0; i < 4; ++i) {
+        quad_verts[i][0] *= zoom;
+        quad_verts[i][1] *= zoom;
+
+        quad_verts[i][0] += scroll_x;
+        quad_verts[i][1] += scroll_y;
+    }
     if (aspect_diff > 0) {
         for (int i = 0; i < 4; ++i) {
             quad_verts[i][0] *= image_aspect / viewport_aspect;
@@ -208,13 +215,6 @@ static void gen_quad(int image_width, int image_height) {
         for (int i = 0; i < 4; ++i) {
             quad_verts[i][1] *= 1 / image_aspect * viewport_aspect;
         }
-    }
-    for (int i = 0; i < 4; ++i) {
-        quad_verts[i][0] *= zoom;
-        quad_verts[i][1] *= zoom;
-
-        quad_verts[i][0] += scroll_x;
-        quad_verts[i][1] += scroll_y;
     }
     glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 16, quad_verts,
                  GL_DYNAMIC_DRAW);
