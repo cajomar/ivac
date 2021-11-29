@@ -13,9 +13,12 @@
 
 double viewport[2];
 bool dirty = true;
+// Scale of the image
 double zoom = 1.0;
+// Image center's offset
 double scroll_x = 0.0;
 double scroll_y = 0.0;
+// Pixel location of mouse
 double cursor_x = 0.0;
 double cursor_y = 0.0;
 
@@ -33,7 +36,19 @@ static void window_resize_callback(GLFWwindow* window, int w, int h) {
 
 static void scroll_callback(GLFWwindow* window, double x, double y) {
     dirty = true;
-    zoom += zoom * y * 0.3f;
+    double zoom_add = zoom * y * 0.3f;
+    double cx, cy; // Relative to screen's center
+    pixel_to_gl_screen(cursor_x, cursor_y, &cx, &cy);
+    // Now relative to scroll
+    cx -= scroll_x;
+    cy -= scroll_y;
+
+    // offset / zoom_add == c / zoom
+    // offset            == c / zoom * zoom_add
+    scroll_x -= cx / zoom * zoom_add;
+    scroll_y -= cy / zoom * zoom_add;
+
+    zoom += zoom_add;
     if (zoom < 0.01) {
         zoom = 0.01;
     }
