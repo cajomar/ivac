@@ -206,13 +206,10 @@ static void gen_quad(int image_width, int image_height) {
 
         quad_verts[i][0] += scroll_x;
         quad_verts[i][1] += scroll_y;
-    }
-    if (aspect_diff > 0) {
-        for (int i = 0; i < 4; ++i) {
+
+        if (aspect_diff > 0) {
             quad_verts[i][0] *= image_aspect / viewport_aspect;
-        }
-    } else if (aspect_diff < 0) {
-        for (int i = 0; i < 4; ++i) {
+        } else if (aspect_diff < 0) {
             quad_verts[i][1] *= 1 / image_aspect * viewport_aspect;
         }
     }
