@@ -25,7 +25,7 @@ double cursor_y = 0.0;
 
 double contrast = 1;
 
-static void pixel_to_gl_screen(double x, double y, double* _x, double* _y) {
+static void pixel_to_gl_screen(float x, float y, float* _x, float* _y) {
     *_x = x / viewport[0] * 2 - 1;
     *_y = -(y / viewport[1] * 2 - 1);
 }
@@ -39,8 +39,8 @@ static void window_resize_callback(GLFWwindow* window, int w, int h) {
 
 static void scroll_callback(GLFWwindow* window, double x, double y) {
     dirty = true;
-    double zoom_add = zoom * y * 0.3f;
-    double cx, cy; // Relative to screen's center
+    float zoom_add = zoom * y * 0.3f;
+    float cx, cy; // Relative to screen's center
     pixel_to_gl_screen(cursor_x, cursor_y, &cx, &cy);
     // Now relative to scroll
     cx -= scroll_x;
@@ -61,7 +61,7 @@ static void mouse_motion_callback(GLFWwindow* window, double x, double y) {
     if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
         dirty = true;
 
-        double cx, cy, px, py;
+        float cx, cy, px, py;
         pixel_to_gl_screen(cursor_x, cursor_y, &cx, &cy);
         pixel_to_gl_screen(x, y, &px, &py);
 
@@ -192,29 +192,26 @@ static void build_image_buffer(int image_width, int image_height, GLuint vbo) {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-static void build_slider_buffer(GLuint vbo) {
-    float x1 = (viewport[0] - 32.0) / viewport[0] * 2.0 - 1.0;
-    float x2 = (viewport[0] - 24.0) / viewport[0] * 2.0 - 1.0;
-    float y1 = (viewport[1] - 24) / viewport[1] * 2 - 1;
-    float y2 = (viewport[1] - 128) / viewport[1] * 2 - 1;
-
-    float verts[4][2] = {
-        {x1, y1},
-        {x2, y1},
-        {x1, y2},
-        {x2, y2},
-    };
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 8, verts, GL_DYNAMIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+static void get_slider_bounds(float* l, float* r, float* t, float* b) {
+    *l = viewport[0] - 32.0;
+    *r = viewport[0] - 24.0;
+    *t = viewport[1] - 128;
+    *b = viewport[1] - 24;
 }
 
-static void build_handle_buffer(GLuint vbo) {
-    float x1 = (viewport[0] - 36.0) / viewport[0] * 2.0 - 1.0;
-    float x2 = (viewport[0] - 20.0) / viewport[0] * 2.0 - 1.0;
+static void get_handle_bounds(float* l, float* r, float* t, float* b) {
+    *l = viewport[0] - 36.0;
+    *r = viewport[0] - 20.0;
     float y = viewport[1] - 24 - 105*contrast;
-    float y1 = (y - 8) / viewport[1] * 2.0 - 1.0;
-    float y2 = (y + 8) / viewport[1] * 2.0 - 1.0;
+    *t = y + 8;
+    *b = y - 8;
+}
+
+static void build_quad_buffer(GLuint vbo, void(*get_bounds)(float*, float*, float*, float*)) {
+    float x1, x2, y1, y2;
+    get_bounds(&x1, &x2, &y1, &y2);
+    pixel_to_gl_screen(x1, y1, &x1, &y1);
+    pixel_to_gl_screen(x2, y2, &x2, &y2);
 
     float verts[4][2] = {
         {x1, y1},
@@ -344,12 +341,12 @@ int main(int argc, const char** argv) {
                 glUseProgram(slider_shader);
                 glUniform3f(glGetUniformLocation(slider_shader, "color"), 1.0, 0.8, 0.4);
                 glBindVertexArray(slider.vao);
-                build_slider_buffer(slider.vbo);
+                build_quad_buffer(slider.vbo, get_slider_bounds);
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
                 // glBindVertexArray(0);
                 
                 glUniform3f(glGetUniformLocation(slider_shader, "color"), 0.4, 0.8, 1.0);
-                build_handle_buffer(slider.vbo);
+                build_quad_buffer(slider.vbo, get_handle_bounds);
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
             }
             glfwSwapBuffers(win);
