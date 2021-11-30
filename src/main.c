@@ -4,6 +4,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_FAILURE_USERMSG
 #include "stb_image.h"
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
 
 #include "shader.h"
 #include "vertex_object.h"
@@ -25,6 +27,7 @@ double cursor_y = 0.0;
 
 double contrast = 0.5;
 bool dragging_handle = false;
+bool save_image = false;
 
 const float handle_size = 12;
 
@@ -40,6 +43,16 @@ static bool in_bounds(float x, float y, Rect* rect) {
 static void pixel_to_gl_screen(float x, float y, float* _x, float* _y) {
     *_x = x / viewport[0] * 2 - 1;
     *_y = -(y / viewport[1] * 2 - 1);
+}
+
+static Rect get_save_button_bounds() {
+    Rect rect = {
+        .x = 16,
+        .w = 32,
+        .y = 16,
+        .h = 32,
+    };
+    return rect;
 }
 
 static Rect get_slider_bounds() {
@@ -121,10 +134,14 @@ static void
 mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
     if (button == GLFW_MOUSE_BUTTON_LEFT) {
         if (action == GLFW_PRESS) {
+            Rect button = get_save_button_bounds();
             Rect slider = get_slider_bounds();
             Rect handle = get_handle_bounds();
-            if (in_bounds(cursor_x, cursor_y, &slider) ||
-                in_bounds(cursor_x, cursor_x, &handle)) {
+            if (in_bounds(cursor_x, cursor_y, &button)) {
+                // Kind of a wierd hack to get texture info into scope
+                save_image = true;
+            } else if (in_bounds(cursor_x, cursor_y, &slider) ||
+                       in_bounds(cursor_x, cursor_x, &handle)) {
                 dragging_handle = true;
                 set_handle_pos(cursor_y);
                 dirty = true;
@@ -358,6 +375,7 @@ int main(int argc, const char** argv) {
     }
 
     stbi_set_flip_vertically_on_load(true);
+    stbi_flip_vertically_on_write(true);
     int w, h, c;
     uint8_t* data = stbi_load(argv[1], &w, &h, &c, 0);
     if (data == NULL) {
@@ -489,7 +507,27 @@ int main(int argc, const char** argv) {
             build_quad_buffer(slider.vbo, get_handle_bounds());
             GLDEBUG(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
 
+            // Render the button
+            GLDEBUG(glUniform3f(0, 0.4, 0.8, 1.0));
+            build_quad_buffer(slider.vbo, get_save_button_bounds());
+            GLDEBUG(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
+
             glfwSwapBuffers(win);
+
+            if (save_image) {
+                save_image = false;
+                size_t bufsize = w * h * c;
+                uint8_t* data = malloc(bufsize);
+                if (!data) {
+                    FATAL_ERROR("failed to allocate %zu bytes\n", bufsize);
+                    continue;
+                }
+                GLDEBUG(glGetTexImage(GL_TEXTURE_2D, 0, fmt, GL_UNSIGNED_BYTE,
+                                      data));
+                printf("Saving image to out.jpg\n");
+                stbi_write_jpg("out.jpg", w, h, c, data, 100);
+                free(data);
+            }
         }
     }
 
