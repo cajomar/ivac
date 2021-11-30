@@ -7,6 +7,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
+#include "gui.h"
 #include "shader.h"
 #include "vertex_object.h"
 
@@ -14,94 +15,28 @@
 #include <stdint.h>
 #include <stdio.h>
 
-double viewport[2];
+// Width and height of the window
+float viewport[2];
+// If the window needs to be re-drawn
 bool dirty = true;
 // Scale of the image
-double zoom = 1.0;
+float zoom = 1.0;
 // Image center's offset
-double scroll_x = 0.0;
-double scroll_y = 0.0;
+float scroll_x = 0.0;
+float scroll_y = 0.0;
 // Pixel location of mouse
-double cursor_x = 0.0;
-double cursor_y = 0.0;
-
-double contrast = 0.5;
+float cursor_x = 0.0;
+float cursor_y = 0.0;
+// Value of the image slider form 0-1
+float contrast = 0.5;
+// If we're dragging the handle
 bool dragging_handle = false;
+// If we should save the image
 bool save_image = false;
-
-const float handle_size = 12;
-
-typedef struct rect {
-    float x, y, w, h;
-} Rect;
-
-static bool in_bounds(float x, float y, Rect* rect) {
-    return !(x < rect->x || x > rect->x + rect->w || y < rect->y ||
-             y > rect->y + rect->h);
-}
 
 static void pixel_to_gl_screen(float x, float y, float* _x, float* _y) {
     *_x = x / viewport[0] * 2 - 1;
     *_y = -(y / viewport[1] * 2 - 1);
-}
-
-static Rect get_save_button_bounds() {
-    Rect rect = {
-        .x = 16,
-        .w = 32,
-        .y = 16,
-        .h = 32,
-    };
-    return rect;
-}
-
-static Rect get_slider_bounds() {
-    const float slider_width = 8;
-    const float padding = 24;
-    const float slider_length = viewport[1] - padding * 2 - handle_size;
-
-    Rect rect = {
-        .x = viewport[0] - padding - slider_width,
-        .w = slider_width,
-        .y = padding,
-        .h = slider_length,
-    };
-    return rect;
-}
-
-static Rect get_slider_gui_bounds() {
-    Rect rect = get_slider_bounds();
-    rect.y -= handle_size / 2;
-    rect.h += handle_size;
-    return rect;
-}
-
-static float get_handle_pos() {
-    Rect slider = get_slider_bounds();
-    return slider.y + slider.h * contrast;
-}
-
-static void set_handle_pos(float y) {
-    Rect slider = get_slider_bounds();
-    float handle_y = y - slider.y;
-    if (handle_y <= 0) {
-        handle_y = 1;
-    } else if (handle_y >= slider.h) {
-        handle_y = slider.h - 1;
-    }
-    contrast = handle_y / slider.h;
-}
-
-static Rect get_handle_bounds() {
-    Rect slider = get_slider_bounds();
-    float y = get_handle_pos();
-    Rect rect = {
-        .x = slider.x - (handle_size - slider.w) / 2,
-        .w = handle_size,
-        .y = y - handle_size / 2,
-        .h = handle_size,
-    };
-    return rect;
 }
 
 static void window_resize_callback(GLFWwindow* window, int w, int h) {
@@ -130,8 +65,8 @@ static void scroll_callback(GLFWwindow* window, double x, double y) {
     }
 }
 
-static void
-mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
+static void mouse_button_callback(GLFWwindow* window, int button, int action,
+                                  int mods) {
     if (button == GLFW_MOUSE_BUTTON_LEFT) {
         if (action == GLFW_PRESS) {
             Rect button = get_save_button_bounds();
@@ -174,11 +109,8 @@ static void error_callback(int code, const char* description) {
     fprintf(stderr, "GLFW Error %d: %s\n", code, description);
 }
 
-static void GLAPIENTRY message_callback(GLenum source,
-                                        GLenum type,
-                                        GLuint id,
-                                        GLenum severity,
-                                        GLsizei length,
+static void GLAPIENTRY message_callback(GLenum source, GLenum type, GLuint id,
+                                        GLenum severity, GLsizei length,
                                         const GLchar* message,
                                         const void* userParam) {
     fprintf(stderr,
@@ -189,32 +121,35 @@ static void GLAPIENTRY message_callback(GLenum source,
 }
 
 static GLuint get_gui_shader() {
-    const char* const vertex_source = "#version 430 core\n"
-                                      "in vec2 pos;\n"
-                                      "void main() {\n"
-                                      "    gl_Position = vec4(pos, 0.0, 1.0);\n"
-                                      "}\n";
+    const char* const vertex_source =
+        "#version 430 core\n"
+        "in vec2 pos;\n"
+        "void main() {\n"
+        "    gl_Position = vec4(pos, 0.0, 1.0);\n"
+        "}\n";
 
     // Be sure to update uniform setting when changing uniform positions
-    const char* fragment_source = "#version 430 core\n"
-                                  "out vec4 frag_color;\n"
-                                  "uniform vec3 color;\n"
-                                  "void main() {\n"
-                                  "    frag_color = vec4(color, 1.0);\n"
-                                  "}\n";
+    const char* fragment_source =
+        "#version 430 core\n"
+        "out vec4 frag_color;\n"
+        "uniform vec3 color;\n"
+        "void main() {\n"
+        "    frag_color = vec4(color, 1.0);\n"
+        "}\n";
 
     return shader_new(vertex_source, fragment_source);
 }
 
 static GLuint get_image_shader() {
-    const char* vertex_source = "#version 430 core\n"
-                                "in vec2 pos;\n"
-                                "in vec2 v_uv;\n"
-                                "out vec2 uv;\n"
-                                "void main() {\n"
-                                "    uv = v_uv;\n"
-                                "    gl_Position = vec4(pos, 0.0, 1.0);\n"
-                                "}\n";
+    const char* vertex_source =
+        "#version 430 core\n"
+        "in vec2 pos;\n"
+        "in vec2 v_uv;\n"
+        "out vec2 uv;\n"
+        "void main() {\n"
+        "    uv = v_uv;\n"
+        "    gl_Position = vec4(pos, 0.0, 1.0);\n"
+        "}\n";
 
     // Be sure to update uniform setting when changing uniform positions
     const char* fragment_source =
@@ -233,39 +168,36 @@ static GLuint get_image_shader() {
 }
 
 static GLuint get_display_shader() {
-    const char* vertex_source = "#version 430 core\n"
-                                "in vec2 pos;\n"
-                                "in vec2 v_uv;\n"
-                                "out vec2 uv;\n"
-                                "void main() {\n"
-                                "    uv = v_uv;\n"
-                                "    gl_Position = vec4(pos, 0.0, 1.0);\n"
-                                "}\n";
+    const char* vertex_source =
+        "#version 430 core\n"
+        "in vec2 pos;\n"
+        "in vec2 v_uv;\n"
+        "out vec2 uv;\n"
+        "void main() {\n"
+        "    uv = v_uv;\n"
+        "    gl_Position = vec4(pos, 0.0, 1.0);\n"
+        "}\n";
 
     // Be sure to update uniform setting when changing uniform positions
-    const char* fragment_source = "#version 430 core\n"
-                                  "in vec2 uv;\n"
-                                  "out vec4 frag_color;\n"
-                                  "uniform sampler2D tex;\n"
-                                  "void main() {\n"
-                                  "    frag_color = texture(tex, uv);\n"
-                                  "}\n";
+    const char* fragment_source =
+        "#version 430 core\n"
+        "in vec2 uv;\n"
+        "out vec4 frag_color;\n"
+        "uniform sampler2D tex;\n"
+        "void main() {\n"
+        "    frag_color = texture(tex, uv);\n"
+        "}\n";
 
     return shader_new(vertex_source, fragment_source);
 }
 
 static GLint bpp_to_gl_image_format(unsigned int bpp) {
     switch (bpp) {
-    case 4:
-        return GL_RGBA;
-    case 3:
-        return GL_RGB;
-    case 2:
-        return GL_RG;
-    case 1:
-        return GL_ALPHA;
-    default:
-        return GL_RGBA;
+    case 4: return GL_RGBA;
+    case 3: return GL_RGB;
+    case 2: return GL_RG;
+    case 1: return GL_ALPHA;
+    default: return GL_RGBA;
     }
 }
 
