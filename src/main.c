@@ -95,7 +95,6 @@ static void window_resize_callback(GLFWwindow* window, int w, int h) {
     dirty = true;
     viewport[0] = w;
     viewport[1] = h;
-    glViewport(0, 0, w, h);
 }
 
 static void scroll_callback(GLFWwindow* window, double x, double y) {
@@ -216,6 +215,28 @@ static GLuint get_image_shader() {
     return shader_new(vertex_source, fragment_source);
 }
 
+static GLuint get_display_shader() {
+    const char* vertex_source = "#version 430 core\n"
+                                "in vec2 pos;\n"
+                                "in vec2 v_uv;\n"
+                                "out vec2 uv;\n"
+                                "void main() {\n"
+                                "    uv = v_uv;\n"
+                                "    gl_Position = vec4(pos, 0.0, 1.0);\n"
+                                "}\n";
+
+    // Be sure to update uniform setting when changing uniform positions
+    const char* fragment_source = "#version 430 core\n"
+                                  "in vec2 uv;\n"
+                                  "out vec4 frag_color;\n"
+                                  "uniform sampler2D tex;\n"
+                                  "void main() {\n"
+                                  "    frag_color = texture(tex, uv);\n"
+                                  "}\n";
+
+    return shader_new(vertex_source, fragment_source);
+}
+
 static GLint bpp_to_gl_image_format(unsigned int bpp) {
     switch (bpp) {
     case 4:
@@ -231,22 +252,18 @@ static GLint bpp_to_gl_image_format(unsigned int bpp) {
     }
 }
 
-static GLuint create_texture(unsigned int w,
-                             unsigned int h,
-                             unsigned int c,
-                             const uint8_t* data) {
-
-    GLuint tex;
-    glGenTextures(1, &tex);
-    glBindTexture(GL_TEXTURE_2D, tex);
-    GLint fmt = bpp_to_gl_image_format(c);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    if (data) {
-        glTexImage2D(GL_TEXTURE_2D, 0, fmt, w, h, 0, fmt, GL_UNSIGNED_BYTE,
-                     data);
-    }
-    return tex;
+static void build_first_image_buffer(GLuint vbo) {
+    float verts[4][4] = {
+        // xyuv
+        {-1, +1, 0, 1},
+        {-1, -1, 0, 0},
+        {+1, +1, 1, 1},
+        {+1, -1, 1, 0},
+    };
+    GLDEBUG(glBindBuffer(GL_ARRAY_BUFFER, vbo));
+    GLDEBUG(glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 16, verts,
+                         GL_DYNAMIC_DRAW));
+    GLDEBUG(glBindBuffer(GL_ARRAY_BUFFER, 0));
 }
 
 static void build_image_buffer(int image_width, int image_height, GLuint vbo) {
@@ -274,9 +291,10 @@ static void build_image_buffer(int image_width, int image_height, GLuint vbo) {
             verts[i][1] *= 1 / image_aspect * viewport_aspect;
         }
     }
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 16, verts, GL_DYNAMIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    GLDEBUG(glBindBuffer(GL_ARRAY_BUFFER, vbo));
+    GLDEBUG(glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 16, verts,
+                         GL_DYNAMIC_DRAW));
+    GLDEBUG(glBindBuffer(GL_ARRAY_BUFFER, 0));
 }
 
 static void build_quad_buffer(GLuint vbo, Rect r) {
@@ -290,9 +308,10 @@ static void build_quad_buffer(GLuint vbo, Rect r) {
         {x1, y2},
         {x2, y2},
     };
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 8, verts, GL_DYNAMIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    GLDEBUG(glBindBuffer(GL_ARRAY_BUFFER, vbo));
+    GLDEBUG(glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 8, verts,
+                         GL_DYNAMIC_DRAW));
+    GLDEBUG(glBindBuffer(GL_ARRAY_BUFFER, 0));
 }
 
 static GLFWwindow* setup_glfw(int image_width, int image_height) {
@@ -360,10 +379,8 @@ int main(int argc, const char** argv) {
     printf("OpenGL %s GLSL %s\n", glGetString(GL_VERSION),
            glGetString(GL_SHADING_LANGUAGE_VERSION));
 
-    glEnable(GL_DEBUG_OUTPUT);
-    glDebugMessageCallback(message_callback, 0);
-
-    glViewport(0, 0, viewport[0], viewport[1]);
+    GLDEBUG(glEnable(GL_DEBUG_OUTPUT));
+    GLDEBUG(glDebugMessageCallback(message_callback, 0));
 
     VertexObject image;
     {
@@ -391,48 +408,96 @@ int main(int argc, const char** argv) {
 
     GLuint image_shader = get_image_shader();
     GLuint slider_shader = get_slider_shader();
+    GLuint display_shader = get_display_shader();
 
-    GLuint tex = create_texture(w, h, c, data);
+    GLuint tex[0];
+    GLDEBUG(glGenTextures(2, tex));
+
+    // Set original image texture data
+    GLDEBUG(glBindTexture(GL_TEXTURE_2D, tex[0]));
+    GLDEBUG(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+    GLDEBUG(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+    GLint fmt = bpp_to_gl_image_format(c);
+    GLDEBUG(glTexImage2D(GL_TEXTURE_2D, 0, fmt, w, h, 0, fmt, GL_UNSIGNED_BYTE,
+                         data));
     stbi_image_free(data);
 
-    glClearColor(0, 0, 0, 0);
+    // Create the framebuffer object
+    GLuint fbo;
+    GLDEBUG(glGenFramebuffers(1, &fbo));
+    GLDEBUG(glBindFramebuffer(GL_FRAMEBUFFER, fbo));
+    GLDEBUG(glBindTexture(GL_TEXTURE_2D, tex[1]));
+    GLDEBUG(glTexImage2D(GL_TEXTURE_2D, 0, fmt, w, h, 0, fmt, GL_UNSIGNED_BYTE,
+                         NULL));
+    GLDEBUG(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+    GLDEBUG(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+    GLDEBUG(glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                   GL_TEXTURE_2D, tex[1], 0));
+
+    GLDEBUG(glReadBuffer(GL_COLOR_ATTACHMENT0));
+    GLDEBUG(glDrawBuffer(GL_COLOR_ATTACHMENT0));
+
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        FATAL_ERROR("framebuffer is not complete\n");
+        return -1;
+    }
+
+    GLDEBUG(glClearColor(0, 0, 0, 0));
 
     while (!glfwWindowShouldClose(win)) {
         glfwWaitEvents();
         if (dirty) {
             dirty = false;
-            glClear(GL_COLOR_BUFFER_BIT);
-            {
-                glUseProgram(image_shader);
-                // Note: Here I'm manually setting the uniform position. Be
-                // sure to update when editing shaders!
-                glUniform1f(1, 1 - logf(contrast * 2));
-                glBindVertexArray(image.vao);
-                build_image_buffer(w, h, image.vbo);
-                glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-                // glBindVertexArray(0);
-            }
-            {
-                glUseProgram(slider_shader);
-                // Note: Here I'm manually setting the uniform position. Be
-                // sure to update when editing shaders!
-                glUniform3f(0, 1.0, 0.8, 0.4);
-                glBindVertexArray(slider.vao);
-                build_quad_buffer(slider.vbo, get_slider_gui_bounds());
-                glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-                // glBindVertexArray(0);
 
-                glUniform3f(glGetUniformLocation(slider_shader, "color"), 0.4,
-                            0.8, 1.0);
-                build_quad_buffer(slider.vbo, get_handle_bounds());
-                glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-            }
+            // First render image to framebuffer, adjusting the contrast
+            GLDEBUG(glBindFramebuffer(GL_FRAMEBUFFER, fbo));
+            GLDEBUG(glViewport(0, 0, w, h));
+            GLDEBUG(glClear(GL_COLOR_BUFFER_BIT));
+
+            GLDEBUG(glUseProgram(image_shader));
+            GLDEBUG(glBindTexture(GL_TEXTURE_2D, tex[0]));
+            // Note: Here I'm manually setting the uniform position. Be
+            // sure to update when editing shaders!
+            GLDEBUG(glUniform1f(1, 1 - logf(contrast * 2)));
+            GLDEBUG(glBindVertexArray(image.vao));
+            build_first_image_buffer(image.vbo);
+            GLDEBUG(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
+
+            // Now render to screen
+            GLDEBUG(glBindFramebuffer(GL_FRAMEBUFFER, 0));
+            GLDEBUG(glViewport(0, 0, viewport[0], viewport[1]));
+            GLDEBUG(glClear(GL_COLOR_BUFFER_BIT));
+
+            // Render the edited image
+            GLDEBUG(glUseProgram(display_shader));
+            GLDEBUG(glBindTexture(GL_TEXTURE_2D, tex[1]));
+            // The image vao is already bound
+            build_image_buffer(w, h, image.vbo);
+            GLDEBUG(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
+
+            // Render the slider
+            GLDEBUG(glUseProgram(slider_shader));
+            // Note: Here I'm manually setting the uniform position. Be
+            // sure to update when editing shader uniforms!
+            GLDEBUG(glUniform3f(0, 1.0, 0.8, 0.4));
+            GLDEBUG(glBindVertexArray(slider.vao));
+            build_quad_buffer(slider.vbo, get_slider_gui_bounds());
+            GLDEBUG(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
+
+            // Render the handle
+            GLDEBUG(glUniform3f(0, 0.4, 0.8, 1.0));
+            build_quad_buffer(slider.vbo, get_handle_bounds());
+            GLDEBUG(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
+
             glfwSwapBuffers(win);
         }
     }
 
-    glDeleteTextures(1, &tex);
-    glDeleteProgram(image_shader);
+    GLDEBUG(glDeleteFramebuffers(1, &fbo));
+    GLDEBUG(glDeleteTextures(2, tex));
+    GLDEBUG(glDeleteProgram(image_shader));
+    GLDEBUG(glDeleteProgram(slider_shader));
+    GLDEBUG(glDeleteProgram(display_shader));
     vertex_object_deinit(&image);
     vertex_object_deinit(&slider);
 
