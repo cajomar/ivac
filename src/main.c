@@ -15,6 +15,8 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#define NUM_WIDGETS 3
+
 // Width and height of the window
 float viewport[2];
 // If the window needs to be re-drawn
@@ -33,6 +35,11 @@ float contrast = 0.5;
 bool dragging_handle = false;
 // If we should save the image
 bool save_image = false;
+
+struct widget {
+    Rect (*get_bounds)();
+    float color[3];
+};
 
 static void pixel_to_gl_screen(float x, float y, float* _x, float* _y) {
     *_x = x / viewport[0] * 2 - 1;
@@ -356,6 +363,13 @@ int main(int argc, const char** argv) {
         vertex_object_init(&gui, 1, types, counts);
     }
 
+    const struct widget widgets[NUM_WIDGETS] = {
+        {get_save_button_bounds, {0.4, 0.8, 1.0}},
+        {get_slider_gui_bounds, {1.0, 0.8, 0.4}},
+        {get_handle_bounds, {0.4, 0.8, 1.0}},
+    };
+
+
     GLuint gui_shader = get_gui_shader();
     GLuint image_shader = get_image_shader();
     GLuint display_shader = get_display_shader();
@@ -427,22 +441,16 @@ int main(int argc, const char** argv) {
 
             // Render the slider
             GLDEBUG(glUseProgram(gui_shader));
-            // Note: Here I'm manually setting the uniform position. Be
-            // sure to update when editing shader uniforms!
-            GLDEBUG(glUniform3f(0, 1.0, 0.8, 0.4));
             GLDEBUG(glBindVertexArray(gui.vao));
-            build_quad_buffer(gui.vbo, get_slider_gui_bounds());
-            GLDEBUG(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
+            for (int i = 0; i < NUM_WIDGETS; ++i) {
+                // Note: Here I'm manually setting the uniform position. Be
+                // sure to update when editing shader uniforms!
+                GLDEBUG(glUniform3fv(0, 1, widgets[i].color));
+                build_quad_buffer(gui.vbo, widgets[i].get_bounds());
+                GLDEBUG(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
+            }
 
-            // Render the handle
-            GLDEBUG(glUniform3f(0, 0.4, 0.8, 1.0));
-            build_quad_buffer(gui.vbo, get_handle_bounds());
-            GLDEBUG(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
 
-            // Render the button
-            GLDEBUG(glUniform3f(0, 0.4, 0.8, 1.0));
-            build_quad_buffer(gui.vbo, get_save_button_bounds());
-            GLDEBUG(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
 
             glfwSwapBuffers(win);
         }
