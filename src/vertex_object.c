@@ -26,13 +26,13 @@ void vertex_object_init(VertexObject* vo,
 
     size_t stride = 0;
     if (num_attribs > 0) {
-        for (int i = 0; i < num_attribs; i++) {
+        for (unsigned int i = 0; i < num_attribs; i++) {
             stride += attrib_counts[i] * size_of_gl_type(attrib_types[i]);
         }
     }
 
     size_t skip = 0;
-    for (int i = 0; i < num_attribs; i++) {
+    for (unsigned int i = 0; i < num_attribs; i++) {
         glEnableVertexAttribArray(i);
         glVertexAttribPointer(i, attrib_counts[i], attrib_types[i], GL_FALSE,
                               stride, (void*)skip);

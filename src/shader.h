@@ -25,4 +25,8 @@
 GLuint shader_new(const char* const vertex_source,
                   const char* const fragment_source);
 
+GLuint get_gui_shader(void);
+GLuint get_image_shader(void);
+GLuint get_display_shader(void);
+
 #endif /* IVAC_SRC_SHADER_H_NGAJOF2E */

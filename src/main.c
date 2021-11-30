@@ -121,89 +121,18 @@ static void mouse_motion_callback(GLFWwindow* window, double x, double y) {
 }
 
 static void error_callback(int code, const char* description) {
-    fprintf(stderr, "GLFW Error %d: %s\n", code, description);
+    FATAL_ERROR("GLFW Error %d: %s\n", code, description);
 }
 
 static void GLAPIENTRY message_callback(GLenum source, GLenum type, GLuint id,
                                         GLenum severity, GLsizei length,
                                         const GLchar* message,
                                         const void* userParam) {
-    fprintf(stderr,
-            "GL CALLBACK: %s source = 0x%x, type = 0x%x, severity = 0x%x, "
-            "message = %s\n",
-            (type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : ""), source, type,
-            severity, message);
-}
-
-static GLuint get_gui_shader() {
-    const char* const vertex_source =
-        "#version 430 core\n"
-        "in vec2 pos;\n"
-        "void main() {\n"
-        "    gl_Position = vec4(pos, 0.0, 1.0);\n"
-        "}\n";
-
-    // Be sure to update uniform setting when changing uniform positions
-    const char* fragment_source =
-        "#version 430 core\n"
-        "out vec4 frag_color;\n"
-        "uniform vec3 color;\n"
-        "void main() {\n"
-        "    frag_color = vec4(color, 1.0);\n"
-        "}\n";
-
-    return shader_new(vertex_source, fragment_source);
-}
-
-static GLuint get_image_shader() {
-    const char* vertex_source =
-        "#version 430 core\n"
-        "in vec2 pos;\n"
-        "in vec2 v_uv;\n"
-        "out vec2 uv;\n"
-        "void main() {\n"
-        "    uv = v_uv;\n"
-        "    gl_Position = vec4(pos, 0.0, 1.0);\n"
-        "}\n";
-
-    // Be sure to update uniform setting when changing uniform positions
-    const char* fragment_source =
-        "#version 430 core\n"
-        "in vec2 uv;\n"
-        "out vec4 frag_color;\n"
-        "uniform sampler2D tex;\n"
-        "uniform float contrast;\n"
-        "vec4 average_luminance = vec4(0.5, 0.5, 0.5, 1.0);\n"
-        "void main() {\n"
-        "    vec4 tex_color = texture(tex, uv);\n"
-        "    frag_color = mix(average_luminance, tex_color, contrast);\n"
-        "}\n";
-
-    return shader_new(vertex_source, fragment_source);
-}
-
-static GLuint get_display_shader() {
-    const char* vertex_source =
-        "#version 430 core\n"
-        "in vec2 pos;\n"
-        "in vec2 v_uv;\n"
-        "out vec2 uv;\n"
-        "void main() {\n"
-        "    uv = v_uv;\n"
-        "    gl_Position = vec4(pos, 0.0, 1.0);\n"
-        "}\n";
-
-    // Be sure to update uniform setting when changing uniform positions
-    const char* fragment_source =
-        "#version 430 core\n"
-        "in vec2 uv;\n"
-        "out vec4 frag_color;\n"
-        "uniform sampler2D tex;\n"
-        "void main() {\n"
-        "    frag_color = texture(tex, uv);\n"
-        "}\n";
-
-    return shader_new(vertex_source, fragment_source);
+    FATAL_ERROR(
+        "GL CALLBACK: %s source = 0x%x, type = 0x%x, severity = 0x%x, "
+        "message = %s\n",
+        (type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : ""), source, type,
+        severity, message);
 }
 
 static GLint bpp_to_gl_image_format(unsigned int bpp) {
@@ -349,26 +278,16 @@ int main(int argc, const char** argv) {
 
     VertexObject image;
     {
-        GLenum types[] = {
-            GL_FLOAT,
-            GL_FLOAT,
-        };
-        uint8_t counts[] = {
-            2,
-            2,
-        };
+        GLenum types[2] = {GL_FLOAT, GL_FLOAT};
+        uint8_t counts[2] = {2, 2};
         vertex_object_init(&image, 2, types, counts);
     }
 
     VertexObject gui;
     {
-        GLenum types[] = {
-            GL_FLOAT,
-        };
-        uint8_t counts[] = {
-            2,
-        };
-        vertex_object_init(&gui, 1, types, counts);
+        GLenum type = GL_FLOAT;
+        uint8_t count = 2;
+        vertex_object_init(&gui, 1, &type, &count);
     }
 
     GLuint gui_shader = get_gui_shader();
