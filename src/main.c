@@ -276,18 +276,12 @@ int main(int argc, const char** argv) {
     GLDEBUG(glEnable(GL_DEBUG_OUTPUT));
     GLDEBUG(glDebugMessageCallback(message_callback, 0));
 
-    VertexObject image;
+    VertexObject image, gui;
     {
         GLenum types[2] = {GL_FLOAT, GL_FLOAT};
         uint8_t counts[2] = {2, 2};
+        vertex_object_init(&gui, 1, types, counts);
         vertex_object_init(&image, 2, types, counts);
-    }
-
-    VertexObject gui;
-    {
-        GLenum type = GL_FLOAT;
-        uint8_t count = 2;
-        vertex_object_init(&gui, 1, &type, &count);
     }
 
     GLuint gui_shader = get_gui_shader();
