@@ -15,8 +15,6 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#define NUM_WIDGETS 3
-
 // Width and height of the window
 float viewport[2];
 // If the window needs to be re-drawn
@@ -36,9 +34,24 @@ bool dragging_handle = false;
 // If we should save the image
 bool save_image = false;
 
+static void queue_save_image() { save_image = true; }
+static void drag_handle() {
+    dragging_handle = true;
+    set_handle_pos(cursor_y);
+    dirty = true;
+}
+
 struct widget {
     Rect (*get_bounds)();
+    void (*mouse_button_down_callback)();
     float color[3];
+};
+
+#define NUM_WIDGETS 3
+const struct widget widgets[NUM_WIDGETS] = {
+    {get_save_button_bounds, queue_save_image, {0.4, 0.8, 1.0}},
+    {get_slider_gui_bounds, drag_handle, {1.0, 0.8, 0.4}},
+    {get_handle_bounds, drag_handle, {0.4, 0.8, 1.0}},
 };
 
 static void pixel_to_gl_screen(float x, float y, float* _x, float* _y) {
@@ -76,17 +89,12 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action,
                                   int mods) {
     if (button == GLFW_MOUSE_BUTTON_LEFT) {
         if (action == GLFW_PRESS) {
-            Rect button = get_save_button_bounds();
-            Rect slider = get_slider_bounds();
-            Rect handle = get_handle_bounds();
-            if (in_bounds(cursor_x, cursor_y, &button)) {
-                // Kind of a wierd hack to get texture info into scope
-                save_image = true;
-            } else if (in_bounds(cursor_x, cursor_y, &slider) ||
-                       in_bounds(cursor_x, cursor_x, &handle)) {
-                dragging_handle = true;
-                set_handle_pos(cursor_y);
-                dirty = true;
+            for (int i = 0; i < NUM_WIDGETS; ++i) {
+                Rect r = widgets[i].get_bounds();
+                if (in_bounds(cursor_x, cursor_y, &r)) {
+                    widgets[i].mouse_button_down_callback();
+                    break;
+                }
             }
         } else if (action == GLFW_RELEASE) {
             dragging_handle = false;
@@ -363,13 +371,6 @@ int main(int argc, const char** argv) {
         vertex_object_init(&gui, 1, types, counts);
     }
 
-    const struct widget widgets[NUM_WIDGETS] = {
-        {get_save_button_bounds, {0.4, 0.8, 1.0}},
-        {get_slider_gui_bounds, {1.0, 0.8, 0.4}},
-        {get_handle_bounds, {0.4, 0.8, 1.0}},
-    };
-
-
     GLuint gui_shader = get_gui_shader();
     GLuint image_shader = get_image_shader();
     GLuint display_shader = get_display_shader();
@@ -449,9 +450,6 @@ int main(int argc, const char** argv) {
                 build_quad_buffer(gui.vbo, widgets[i].get_bounds());
                 GLDEBUG(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
             }
-
-
-
             glfwSwapBuffers(win);
         }
         if (save_image) {
