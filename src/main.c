@@ -360,7 +360,7 @@ int main(int argc, const char** argv) {
     GLuint image_shader = get_image_shader();
     GLuint display_shader = get_display_shader();
 
-    GLuint tex[0];
+    GLuint tex[2];
     GLDEBUG(glGenTextures(2, tex));
 
     // Set original image texture data
