@@ -88,7 +88,7 @@ static void GLAPIENTRY message_callback(GLenum source,
             severity, message);
 }
 
-static GLuint get_shader() {
+static GLuint get_image_shader() {
     const char* const vertex_source = "#version 430 core\n"
                                       "in vec2 pos;\n"
                                       "in vec2 v_uv;\n"
