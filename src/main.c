@@ -188,7 +188,7 @@ static void GLAPIENTRY message_callback(GLenum source,
             severity, message);
 }
 
-static GLuint get_slider_shader() {
+static GLuint get_gui_shader() {
     const char* const vertex_source = "#version 430 core\n"
                                       "in vec2 pos;\n"
                                       "void main() {\n"
@@ -413,7 +413,7 @@ int main(int argc, const char** argv) {
         vertex_object_init(&image, 2, types, counts);
     }
 
-    VertexObject slider;
+    VertexObject gui;
     {
         GLenum types[] = {
             GL_FLOAT,
@@ -421,11 +421,11 @@ int main(int argc, const char** argv) {
         uint8_t counts[] = {
             2,
         };
-        vertex_object_init(&slider, 1, types, counts);
+        vertex_object_init(&gui, 1, types, counts);
     }
 
+    GLuint gui_shader = get_gui_shader();
     GLuint image_shader = get_image_shader();
-    GLuint slider_shader = get_slider_shader();
     GLuint display_shader = get_display_shader();
 
     GLuint tex[0];
@@ -494,22 +494,22 @@ int main(int argc, const char** argv) {
             GLDEBUG(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
 
             // Render the slider
-            GLDEBUG(glUseProgram(slider_shader));
+            GLDEBUG(glUseProgram(gui_shader));
             // Note: Here I'm manually setting the uniform position. Be
             // sure to update when editing shader uniforms!
             GLDEBUG(glUniform3f(0, 1.0, 0.8, 0.4));
-            GLDEBUG(glBindVertexArray(slider.vao));
-            build_quad_buffer(slider.vbo, get_slider_gui_bounds());
+            GLDEBUG(glBindVertexArray(gui.vao));
+            build_quad_buffer(gui.vbo, get_slider_gui_bounds());
             GLDEBUG(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
 
             // Render the handle
             GLDEBUG(glUniform3f(0, 0.4, 0.8, 1.0));
-            build_quad_buffer(slider.vbo, get_handle_bounds());
+            build_quad_buffer(gui.vbo, get_handle_bounds());
             GLDEBUG(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
 
             // Render the button
             GLDEBUG(glUniform3f(0, 0.4, 0.8, 1.0));
-            build_quad_buffer(slider.vbo, get_save_button_bounds());
+            build_quad_buffer(gui.vbo, get_save_button_bounds());
             GLDEBUG(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
 
             glfwSwapBuffers(win);
@@ -532,11 +532,11 @@ int main(int argc, const char** argv) {
 
     GLDEBUG(glDeleteFramebuffers(1, &fbo));
     GLDEBUG(glDeleteTextures(2, tex));
+    GLDEBUG(glDeleteProgram(gui_shader));
     GLDEBUG(glDeleteProgram(image_shader));
-    GLDEBUG(glDeleteProgram(slider_shader));
     GLDEBUG(glDeleteProgram(display_shader));
     vertex_object_deinit(&image);
-    vertex_object_deinit(&slider);
+    vertex_object_deinit(&gui);
 
     return 0;
 }
