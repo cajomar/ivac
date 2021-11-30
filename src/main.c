@@ -23,7 +23,7 @@ double scroll_y = 0.0;
 double cursor_x = 0.0;
 double cursor_y = 0.0;
 
-double contrast = 1;
+double contrast = 0.5;
 bool dragging_handle = false;
 
 const float handle_size = 12;
@@ -44,13 +44,13 @@ static void pixel_to_gl_screen(float x, float y, float* _x, float* _y) {
 
 static Rect get_slider_bounds() {
     const float slider_width = 8;
-    const float slider_length = 128;
     const float padding = 24;
+    const float slider_length = viewport[1] - padding * 2 - handle_size;
 
     Rect rect = {
         .x = viewport[0] - padding - slider_width,
         .w = slider_width,
-        .y = viewport[1] - padding - slider_length,
+        .y = padding,
         .h = slider_length,
     };
     return rect;
@@ -71,10 +71,10 @@ static float get_handle_pos() {
 static void set_handle_pos(float y) {
     Rect slider = get_slider_bounds();
     float handle_y = y - slider.y;
-    if (handle_y < 0) {
-        handle_y = 0;
-    } else if (handle_y > slider.h) {
-        handle_y = slider.h;
+    if (handle_y <= 0) {
+        handle_y = 1;
+    } else if (handle_y >= slider.h) {
+        handle_y = slider.h - 1;
     }
     contrast = handle_y / slider.h;
 }
@@ -179,6 +179,7 @@ static GLuint get_slider_shader() {
                                       "    gl_Position = vec4(pos, 0.0, 1.0);\n"
                                       "}\n";
 
+    // Be sure to update uniform setting when changing uniform positions
     const char* fragment_source = "#version 430 core\n"
                                   "out vec4 frag_color;\n"
                                   "uniform vec3 color;\n"
@@ -190,22 +191,27 @@ static GLuint get_slider_shader() {
 }
 
 static GLuint get_image_shader() {
-    const char* const vertex_source = "#version 430 core\n"
-                                      "in vec2 pos;\n"
-                                      "in vec2 v_uv;\n"
-                                      "out vec2 uv;\n"
-                                      "void main() {\n"
-                                      "    uv = v_uv;\n"
-                                      "    gl_Position = vec4(pos, 0.0, 1.0);\n"
-                                      "}\n";
+    const char* vertex_source = "#version 430 core\n"
+                                "in vec2 pos;\n"
+                                "in vec2 v_uv;\n"
+                                "out vec2 uv;\n"
+                                "void main() {\n"
+                                "    uv = v_uv;\n"
+                                "    gl_Position = vec4(pos, 0.0, 1.0);\n"
+                                "}\n";
 
-    const char* fragment_source = "#version 430 core\n"
-                                  "in vec2 uv;\n"
-                                  "out vec4 frag_color;\n"
-                                  "uniform sampler2D tex;\n"
-                                  "void main() {\n"
-                                  "    frag_color = texture(tex, uv);\n"
-                                  "}\n";
+    // Be sure to update uniform setting when changing uniform positions
+    const char* fragment_source =
+        "#version 430 core\n"
+        "in vec2 uv;\n"
+        "out vec4 frag_color;\n"
+        "uniform sampler2D tex;\n"
+        "uniform float contrast;\n"
+        "vec4 average_luminance = vec4(0.5, 0.5, 0.5, 1.0);\n"
+        "void main() {\n"
+        "    vec4 tex_color = texture(tex, uv);\n"
+        "    frag_color = mix(average_luminance, tex_color, contrast);\n"
+        "}\n";
 
     return shader_new(vertex_source, fragment_source);
 }
@@ -398,6 +404,9 @@ int main(int argc, const char** argv) {
             glClear(GL_COLOR_BUFFER_BIT);
             {
                 glUseProgram(image_shader);
+                // Note: Here I'm manually setting the uniform position. Be
+                // sure to update when editing shaders!
+                glUniform1f(1, 1 - logf(contrast * 2));
                 glBindVertexArray(image.vao);
                 build_image_buffer(w, h, image.vbo);
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -405,8 +414,9 @@ int main(int argc, const char** argv) {
             }
             {
                 glUseProgram(slider_shader);
-                glUniform3f(glGetUniformLocation(slider_shader, "color"), 1.0,
-                            0.8, 0.4);
+                // Note: Here I'm manually setting the uniform position. Be
+                // sure to update when editing shaders!
+                glUniform3f(0, 1.0, 0.8, 0.4);
                 glBindVertexArray(slider.vao);
                 build_quad_buffer(slider.vbo, get_slider_gui_bounds());
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
