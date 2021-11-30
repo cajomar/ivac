@@ -24,10 +24,71 @@ double cursor_x = 0.0;
 double cursor_y = 0.0;
 
 double contrast = 1;
+bool dragging_handle = false;
+
+const float handle_size = 12;
+
+typedef struct rect {
+    float x, y, w, h;
+} Rect;
+
+static bool in_bounds(float x, float y, Rect* rect) {
+    return !(x < rect->x || x > rect->x + rect->w || y < rect->y ||
+             y > rect->y + rect->h);
+}
 
 static void pixel_to_gl_screen(float x, float y, float* _x, float* _y) {
     *_x = x / viewport[0] * 2 - 1;
     *_y = -(y / viewport[1] * 2 - 1);
+}
+
+static Rect get_slider_bounds() {
+    const float slider_width = 8;
+    const float slider_length = 128;
+    const float padding = 24;
+
+    Rect rect = {
+        .x = viewport[0] - padding - slider_width,
+        .w = slider_width,
+        .y = viewport[1] - padding - slider_length,
+        .h = slider_length,
+    };
+    return rect;
+}
+
+static Rect get_slider_gui_bounds() {
+    Rect rect = get_slider_bounds();
+    rect.y -= handle_size / 2;
+    rect.h += handle_size;
+    return rect;
+}
+
+static float get_handle_pos() {
+    Rect slider = get_slider_bounds();
+    return slider.y + slider.h * contrast;
+}
+
+static void set_handle_pos(float y) {
+    Rect slider = get_slider_bounds();
+    float handle_y = y - slider.y;
+    if (handle_y < 0) {
+        handle_y = 0;
+    } else if (handle_y > slider.h) {
+        handle_y = slider.h;
+    }
+    contrast = handle_y / slider.h;
+}
+
+static Rect get_handle_bounds() {
+    Rect slider = get_slider_bounds();
+    float y = get_handle_pos();
+    Rect rect = {
+        .x = slider.x - (handle_size - slider.w) / 2,
+        .w = handle_size,
+        .y = y - handle_size / 2,
+        .h = handle_size,
+    };
+    return rect;
 }
 
 static void window_resize_callback(GLFWwindow* window, int w, int h) {
@@ -57,16 +118,37 @@ static void scroll_callback(GLFWwindow* window, double x, double y) {
     }
 }
 
+static void
+mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
+    if (button == GLFW_MOUSE_BUTTON_LEFT) {
+        if (action == GLFW_PRESS) {
+            Rect slider = get_slider_bounds();
+            Rect handle = get_handle_bounds();
+            if (in_bounds(cursor_x, cursor_y, &slider) ||
+                in_bounds(cursor_x, cursor_x, &handle)) {
+                dragging_handle = true;
+                set_handle_pos(cursor_y);
+                dirty = true;
+            }
+        } else if (action == GLFW_RELEASE) {
+            dragging_handle = false;
+        }
+    }
+}
+
 static void mouse_motion_callback(GLFWwindow* window, double x, double y) {
     if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
         dirty = true;
+        if (dragging_handle) {
+            set_handle_pos(y);
+        } else {
+            float cx, cy, px, py;
+            pixel_to_gl_screen(cursor_x, cursor_y, &cx, &cy);
+            pixel_to_gl_screen(x, y, &px, &py);
 
-        float cx, cy, px, py;
-        pixel_to_gl_screen(cursor_x, cursor_y, &cx, &cy);
-        pixel_to_gl_screen(x, y, &px, &py);
-
-        scroll_x += (px - cx) * 1;
-        scroll_y += (py - cy) * 1;
+            scroll_x += (px - cx) * 1;
+            scroll_y += (py - cy) * 1;
+        }
     }
     cursor_x = x;
     cursor_y = y;
@@ -191,30 +273,10 @@ static void build_image_buffer(int image_width, int image_height, GLuint vbo) {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-static void get_slider_bounds(float* l, float* r, float* t, float* b) {
-    *l = viewport[0] - 32.0;
-    *r = viewport[0] - 24.0;
-    *t = viewport[1] - 128;
-    *b = viewport[1] - 24;
-}
-
-static float get_handle_pos() { return viewport[1] - 24 - 105 * contrast; }
-
-static void get_handle_bounds(float* l, float* r, float* t, float* b) {
-    *l = viewport[0] - 36.0;
-    *r = viewport[0] - 20.0;
-    float y = get_handle_pos();
-    *t = y + 8;
-    *b = y - 8;
-}
-
-static void
-build_quad_buffer(GLuint vbo,
-                  void (*get_bounds)(float*, float*, float*, float*)) {
+static void build_quad_buffer(GLuint vbo, Rect r) {
     float x1, x2, y1, y2;
-    get_bounds(&x1, &x2, &y1, &y2);
-    pixel_to_gl_screen(x1, y1, &x1, &y1);
-    pixel_to_gl_screen(x2, y2, &x2, &y2);
+    pixel_to_gl_screen(r.x, r.y, &x1, &y1);
+    pixel_to_gl_screen(r.x + r.w, r.y + r.h, &x2, &y2);
 
     float verts[4][2] = {
         {x1, y1},
@@ -286,6 +348,7 @@ int main(int argc, const char** argv) {
 
     glfwSetCursorPosCallback(win, mouse_motion_callback);
     glfwSetFramebufferSizeCallback(win, window_resize_callback);
+    glfwSetMouseButtonCallback(win, mouse_button_callback);
     glfwSetScrollCallback(win, scroll_callback);
 
     printf("OpenGL %s GLSL %s\n", glGetString(GL_VERSION),
@@ -345,13 +408,13 @@ int main(int argc, const char** argv) {
                 glUniform3f(glGetUniformLocation(slider_shader, "color"), 1.0,
                             0.8, 0.4);
                 glBindVertexArray(slider.vao);
-                build_quad_buffer(slider.vbo, get_slider_bounds);
+                build_quad_buffer(slider.vbo, get_slider_gui_bounds());
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
                 // glBindVertexArray(0);
 
                 glUniform3f(glGetUniformLocation(slider_shader, "color"), 0.4,
                             0.8, 1.0);
-                build_quad_buffer(slider.vbo, get_handle_bounds);
+                build_quad_buffer(slider.vbo, get_handle_bounds());
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
             }
             glfwSwapBuffers(win);
