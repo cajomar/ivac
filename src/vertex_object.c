@@ -15,9 +15,9 @@ static size_t size_of_gl_type(GLenum type) {
 }
 
 void vertex_object_init(VertexObject* vo,
-                unsigned int num_attribs,
-                GLenum* attrib_types,
-                uint8_t* attrib_counts) {
+                        unsigned int num_attribs,
+                        GLenum* attrib_types,
+                        uint8_t* attrib_counts) {
     glGenVertexArrays(1, &vo->vao);
     glGenBuffers(1, &vo->vbo);
 
@@ -25,8 +25,10 @@ void vertex_object_init(VertexObject* vo,
     glBindBuffer(GL_ARRAY_BUFFER, vo->vbo);
 
     size_t stride = 0;
-    for (int i = 0; i < num_attribs; i++) {
-        stride += attrib_counts[i] * size_of_gl_type(attrib_types[i]);
+    if (num_attribs > 0) {
+        for (int i = 0; i < num_attribs; i++) {
+            stride += attrib_counts[i] * size_of_gl_type(attrib_types[i]);
+        }
     }
 
     size_t skip = 0;
@@ -36,7 +38,7 @@ void vertex_object_init(VertexObject* vo,
                               stride, (void*)skip);
         skip += attrib_counts[i] * size_of_gl_type(attrib_types[i]);
     }
-    assert(skip == stride);
+    assert(skip == stride || !num_attribs);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 }

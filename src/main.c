@@ -23,6 +23,8 @@ double scroll_y = 0.0;
 double cursor_x = 0.0;
 double cursor_y = 0.0;
 
+double contrast = 1;
+
 static void pixel_to_gl_screen(double x, double y, double* _x, double* _y) {
     *_x = x / viewport[0] * 2 - 1;
     *_y = -(y / viewport[1] * 2 - 1);
@@ -88,6 +90,23 @@ static void GLAPIENTRY message_callback(GLenum source,
             severity, message);
 }
 
+static GLuint get_slider_shader() {
+    const char* const vertex_source = "#version 430 core\n"
+                                      "in vec2 pos;\n"
+                                      "void main() {\n"
+                                      "    gl_Position = vec4(pos, 0.0, 1.0);\n"
+                                      "}\n";
+
+    const char* fragment_source = "#version 430 core\n"
+                                  "out vec4 frag_color;\n"
+                                  "uniform vec3 color;\n"
+                                  "void main() {\n"
+                                  "    frag_color = vec4(color, 1.0);\n"
+                                  "}\n";
+
+    return shader_new(vertex_source, fragment_source);
+}
+
 static GLuint get_image_shader() {
     const char* const vertex_source = "#version 430 core\n"
                                       "in vec2 pos;\n"
@@ -143,7 +162,7 @@ static GLuint create_texture(unsigned int w,
 }
 
 static void build_image_buffer(int image_width, int image_height, GLuint vbo) {
-    float quad_verts[4][4] = {
+    float verts[4][4] = {
         // xyuv
         {-1, +1, 0, 1},
         {-1, -1, 0, 0},
@@ -155,21 +174,56 @@ static void build_image_buffer(int image_width, int image_height, GLuint vbo) {
     const double aspect_diff = viewport_aspect - image_aspect;
 
     for (int i = 0; i < 4; ++i) {
-        quad_verts[i][0] *= zoom;
-        quad_verts[i][1] *= zoom;
+        verts[i][0] *= zoom;
+        verts[i][1] *= zoom;
 
-        quad_verts[i][0] += scroll_x;
-        quad_verts[i][1] += scroll_y;
+        verts[i][0] += scroll_x;
+        verts[i][1] += scroll_y;
 
         if (aspect_diff > 0) {
-            quad_verts[i][0] *= image_aspect / viewport_aspect;
+            verts[i][0] *= image_aspect / viewport_aspect;
         } else if (aspect_diff < 0) {
-            quad_verts[i][1] *= 1 / image_aspect * viewport_aspect;
+            verts[i][1] *= 1 / image_aspect * viewport_aspect;
         }
     }
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 16, quad_verts,
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 16, verts,
                  GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+static void build_slider_buffer(GLuint vbo) {
+    float x1 = (viewport[0] - 32.0) / viewport[0] * 2.0 - 1.0;
+    float x2 = (viewport[0] - 24.0) / viewport[0] * 2.0 - 1.0;
+    float y1 = (viewport[1] - 24) / viewport[1] * 2 - 1;
+    float y2 = (viewport[1] - 128) / viewport[1] * 2 - 1;
+
+    float verts[4][2] = {
+        {x1, y1},
+        {x2, y1},
+        {x1, y2},
+        {x2, y2},
+    };
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 8, verts, GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+static void build_handle_buffer(GLuint vbo) {
+    float x1 = (viewport[0] - 36.0) / viewport[0] * 2.0 - 1.0;
+    float x2 = (viewport[0] - 20.0) / viewport[0] * 2.0 - 1.0;
+    float y = viewport[1] - 24 - 105*contrast;
+    float y1 = (y - 8) / viewport[1] * 2.0 - 1.0;
+    float y2 = (y + 8) / viewport[1] * 2.0 - 1.0;
+
+    float verts[4][2] = {
+        {x1, y1},
+        {x2, y1},
+        {x1, y2},
+        {x2, y2},
+    };
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 8, verts, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
@@ -255,7 +309,19 @@ int main(int argc, const char** argv) {
         vertex_object_init(&image, 2, types, counts);
     }
 
+    VertexObject slider;
+    {
+        GLenum types[] = {
+            GL_FLOAT,
+        };
+        uint8_t counts[] = {
+            2,
+        };
+        vertex_object_init(&slider, 1, types, counts);
+    }
+
     GLuint image_shader = get_image_shader();
+    GLuint slider_shader = get_slider_shader();
 
     GLuint tex = create_texture(w, h, c, data);
     stbi_image_free(data);
@@ -272,7 +338,19 @@ int main(int argc, const char** argv) {
                 glBindVertexArray(image.vao);
                 build_image_buffer(w, h, image.vbo);
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-                glBindVertexArray(0);
+                // glBindVertexArray(0);
+            }
+            {
+                glUseProgram(slider_shader);
+                glUniform3f(glGetUniformLocation(slider_shader, "color"), 1.0, 0.8, 0.4);
+                glBindVertexArray(slider.vao);
+                build_slider_buffer(slider.vbo);
+                glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+                // glBindVertexArray(0);
+                
+                glUniform3f(glGetUniformLocation(slider_shader, "color"), 0.4, 0.8, 1.0);
+                build_handle_buffer(slider.vbo);
+                glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
             }
             glfwSwapBuffers(win);
         }
@@ -281,6 +359,7 @@ int main(int argc, const char** argv) {
     glDeleteTextures(1, &tex);
     glDeleteProgram(image_shader);
     vertex_object_deinit(&image);
+    vertex_object_deinit(&slider);
 
     return 0;
 }
