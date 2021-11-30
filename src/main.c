@@ -187,8 +187,7 @@ static void build_image_buffer(int image_width, int image_height, GLuint vbo) {
         }
     }
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 16, verts,
-                 GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 16, verts, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
@@ -199,15 +198,19 @@ static void get_slider_bounds(float* l, float* r, float* t, float* b) {
     *b = viewport[1] - 24;
 }
 
+static float get_handle_pos() { return viewport[1] - 24 - 105 * contrast; }
+
 static void get_handle_bounds(float* l, float* r, float* t, float* b) {
     *l = viewport[0] - 36.0;
     *r = viewport[0] - 20.0;
-    float y = viewport[1] - 24 - 105*contrast;
+    float y = get_handle_pos();
     *t = y + 8;
     *b = y - 8;
 }
 
-static void build_quad_buffer(GLuint vbo, void(*get_bounds)(float*, float*, float*, float*)) {
+static void
+build_quad_buffer(GLuint vbo,
+                  void (*get_bounds)(float*, float*, float*, float*)) {
     float x1, x2, y1, y2;
     get_bounds(&x1, &x2, &y1, &y2);
     pixel_to_gl_screen(x1, y1, &x1, &y1);
@@ -339,13 +342,15 @@ int main(int argc, const char** argv) {
             }
             {
                 glUseProgram(slider_shader);
-                glUniform3f(glGetUniformLocation(slider_shader, "color"), 1.0, 0.8, 0.4);
+                glUniform3f(glGetUniformLocation(slider_shader, "color"), 1.0,
+                            0.8, 0.4);
                 glBindVertexArray(slider.vao);
                 build_quad_buffer(slider.vbo, get_slider_bounds);
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
                 // glBindVertexArray(0);
-                
-                glUniform3f(glGetUniformLocation(slider_shader, "color"), 0.4, 0.8, 1.0);
+
+                glUniform3f(glGetUniformLocation(slider_shader, "color"), 0.4,
+                            0.8, 1.0);
                 build_quad_buffer(slider.vbo, get_handle_bounds);
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
             }
