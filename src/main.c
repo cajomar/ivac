@@ -513,21 +513,20 @@ int main(int argc, const char** argv) {
             GLDEBUG(glDrawArrays(GL_TRIANGLE_STRIP, 0, 4));
 
             glfwSwapBuffers(win);
-
-            if (save_image) {
-                save_image = false;
-                size_t bufsize = w * h * c;
-                uint8_t* data = malloc(bufsize);
-                if (!data) {
-                    FATAL_ERROR("failed to allocate %zu bytes\n", bufsize);
-                    continue;
-                }
-                GLDEBUG(glGetTexImage(GL_TEXTURE_2D, 0, fmt, GL_UNSIGNED_BYTE,
-                                      data));
-                printf("Saving image to out.jpg\n");
-                stbi_write_jpg("out.jpg", w, h, c, data, 100);
-                free(data);
+        }
+        if (save_image) {
+            save_image = false;
+            size_t bufsize = w * h * c;
+            uint8_t* data = malloc(bufsize);
+            if (!data) {
+                FATAL_ERROR("failed to allocate %zu bytes\n", bufsize);
+                continue;
             }
+            GLDEBUG(
+                glGetTexImage(GL_TEXTURE_2D, 0, fmt, GL_UNSIGNED_BYTE, data));
+            printf("Saving image to out.jpg\n");
+            stbi_write_jpg("out.jpg", w, h, c, data, 100);
+            free(data);
         }
     }
 
