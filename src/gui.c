@@ -1,9 +1,9 @@
 #include "gui.h"
 
-extern float viewport[2];
+extern const float viewport[2];
 extern float contrast;
 
-const float handle_size = 12;
+static const float handle_size = 12;
 
 bool in_bounds(float x, float y, Rect* rect) {
     return !(x < rect->x || x > rect->x + rect->w || y < rect->y ||

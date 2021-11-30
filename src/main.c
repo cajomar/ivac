@@ -18,21 +18,21 @@
 // Width and height of the window
 float viewport[2];
 // If the window needs to be re-drawn
-bool dirty = true;
+static bool dirty = true;
 // Scale of the image
-float zoom = 1.0;
+static float zoom = 1.0;
 // Image center's offset
-float scroll_x = 0.0;
-float scroll_y = 0.0;
+static float scroll_x = 0.0;
+static float scroll_y = 0.0;
 // Pixel location of mouse
-float cursor_x = 0.0;
-float cursor_y = 0.0;
+static float cursor_x = 0.0;
+static float cursor_y = 0.0;
 // Value of the image slider form 0-1
 float contrast = 0.5;
 // If we're dragging the handle
-bool dragging_handle = false;
+static bool dragging_handle = false;
 // If we should save the image
-bool save_image = false;
+static bool save_image = false;
 
 static void queue_save_image() { save_image = true; }
 static void drag_handle() {
@@ -221,10 +221,7 @@ static GLFWwindow* setup_glfw(int image_width, int image_height) {
 
     const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
 
-    if (image_height > mode->height) {
-        viewport[0] = mode->width;
-        viewport[1] = mode->height;
-    } else if (image_width > mode->width) {
+    if (image_height > mode->height || image_width > mode->width) {
         viewport[0] = mode->width;
         viewport[1] = mode->height;
     } else {
