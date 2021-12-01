@@ -61,7 +61,7 @@ GLuint get_gui_shader() {
         "}\n";
 
     // Be sure to update uniform setting when changing uniform positions
-    const char* fragment_source =
+    const char* const fragment_source =
         "#version 430 core\n"
         "out vec4 frag_color;\n"
         "uniform vec3 color;\n"
@@ -73,7 +73,7 @@ GLuint get_gui_shader() {
 }
 
 GLuint get_image_shader() {
-    const char* vertex_source =
+    const char* const vertex_source =
         "#version 430 core\n"
         "in vec2 pos;\n"
         "in vec2 v_uv;\n"
@@ -84,7 +84,7 @@ GLuint get_image_shader() {
         "}\n";
 
     // Be sure to update uniform setting when changing uniform positions
-    const char* fragment_source =
+    const char* const fragment_source =
         "#version 430 core\n"
         "in vec2 uv;\n"
         "out vec4 frag_color;\n"
@@ -100,7 +100,7 @@ GLuint get_image_shader() {
 }
 
 GLuint get_display_shader() {
-    const char* vertex_source =
+    const char* const vertex_source =
         "#version 430 core\n"
         "in vec2 pos;\n"
         "in vec2 v_uv;\n"
@@ -111,7 +111,7 @@ GLuint get_display_shader() {
         "}\n";
 
     // Be sure to update uniform setting when changing uniform positions
-    const char* fragment_source =
+    const char* const fragment_source =
         "#version 430 core\n"
         "in vec2 uv;\n"
         "out vec4 frag_color;\n"

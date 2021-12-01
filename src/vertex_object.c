@@ -6,18 +6,14 @@
 
 static size_t size_of_gl_type(GLenum type) {
     switch (type) {
-    case GL_FLOAT:
-        return sizeof(float);
-    default:
-        FATAL_ERROR("unexpected enum value 0x%x\n", type);
-        return 0;
+    case GL_FLOAT: return sizeof(float);
+    default: FATAL_ERROR("unexpected enum value 0x%x\n", type); return 0;
     }
 }
 
-void vertex_object_init(VertexObject* vo,
-                        unsigned int num_attribs,
-                        GLenum* attrib_types,
-                        uint8_t* attrib_counts) {
+void vertex_object_init(VertexObject* vo, unsigned int num_attribs,
+                        const GLenum* attrib_types,
+                        const uint8_t* attrib_counts) {
     glGenVertexArrays(1, &vo->vao);
     glGenBuffers(1, &vo->vbo);
 

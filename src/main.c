@@ -67,7 +67,7 @@ static void window_resize_callback(GLFWwindow* window, int w, int h) {
 
 static void scroll_callback(GLFWwindow* window, double x, double y) {
     dirty = true;
-    float zoom_add = zoom * y * 0.3f;
+    const float zoom_add = zoom * y * 0.3f;
     float cx, cy; // Relative to screen's center
     pixel_to_gl_screen(cursor_x, cursor_y, &cx, &cy);
     // Now relative to scroll
@@ -146,7 +146,7 @@ static GLint bpp_to_gl_image_format(unsigned int bpp) {
 }
 
 static void build_first_image_buffer(GLuint vbo) {
-    float verts[4][4] = {
+    const float verts[4][4] = {
         // xyuv
         {-1, +1, 0, 1},
         {-1, -1, 0, 0},
@@ -167,9 +167,9 @@ static void build_image_buffer(int image_width, int image_height, GLuint vbo) {
         {+1, +1, 1, 1},
         {+1, -1, 1, 0},
     };
-    const double image_aspect = image_width / (double)image_height;
-    const double viewport_aspect = viewport[0] / viewport[1];
-    const double aspect_diff = viewport_aspect - image_aspect;
+    const float image_aspect = image_width / (float)image_height;
+    const float viewport_aspect = viewport[0] / viewport[1];
+    const float aspect_diff = viewport_aspect - image_aspect;
 
     for (int i = 0; i < 4; ++i) {
         verts[i][0] *= zoom;
@@ -195,7 +195,7 @@ static void build_quad_buffer(GLuint vbo, Rect r) {
     pixel_to_gl_screen(r.x, r.y, &x1, &y1);
     pixel_to_gl_screen(r.x + r.w, r.y + r.h, &x2, &y2);
 
-    float verts[4][2] = {
+    const float verts[4][2] = {
         {x1, y1},
         {x2, y1},
         {x1, y2},
@@ -241,7 +241,7 @@ static GLFWwindow* setup_glfw(int image_width, int image_height) {
     return window;
 }
 
-int main(int argc, const char** argv) {
+int main(const int argc, const char* const* const argv) {
     if (argc != 2) {
         FATAL_ERROR("expected 1 argument, got %d\n", argc - 1);
         return -1;
@@ -250,13 +250,13 @@ int main(int argc, const char** argv) {
     stbi_set_flip_vertically_on_load(true);
     stbi_flip_vertically_on_write(true);
     int w, h, c;
-    uint8_t* data = stbi_load(argv[1], &w, &h, &c, 0);
+    uint8_t* const data = stbi_load(argv[1], &w, &h, &c, 0);
     if (data == NULL) {
         FATAL_ERROR("failed to load %s: %s\n", argv[1], stbi_failure_reason());
         return -1;
     }
 
-    GLFWwindow* win = setup_glfw(w, h);
+    GLFWwindow* const win = setup_glfw(w, h);
     if (win == NULL) {
         stbi_image_free(data);
         return -1;
@@ -275,15 +275,15 @@ int main(int argc, const char** argv) {
 
     VertexObject image, gui;
     {
-        GLenum types[2] = {GL_FLOAT, GL_FLOAT};
-        uint8_t counts[2] = {2, 2};
+        const GLenum types[2] = {GL_FLOAT, GL_FLOAT};
+        const uint8_t counts[2] = {2, 2};
         vertex_object_init(&gui, 1, types, counts);
         vertex_object_init(&image, 2, types, counts);
     }
 
-    GLuint gui_shader = get_gui_shader();
-    GLuint image_shader = get_image_shader();
-    GLuint display_shader = get_display_shader();
+    const GLuint gui_shader = get_gui_shader();
+    const GLuint image_shader = get_image_shader();
+    const GLuint display_shader = get_display_shader();
 
     GLuint tex[2];
     GLDEBUG(glGenTextures(2, tex));
@@ -364,7 +364,7 @@ int main(int argc, const char** argv) {
         }
         if (save_image) {
             save_image = false;
-            size_t bufsize = w * h * c;
+            const size_t bufsize = w * h * c;
             uint8_t* data = malloc(bufsize);
             if (!data) {
                 FATAL_ERROR("failed to allocate %zu bytes\n", bufsize);

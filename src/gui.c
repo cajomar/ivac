@@ -59,7 +59,7 @@ void set_handle_pos(float y) {
 
 Rect get_handle_bounds() {
     Rect slider = get_slider_bounds();
-    float y = get_handle_pos();
+    const float y = get_handle_pos();
     Rect rect = {
         .x = slider.x - (handle_size - slider.w) / 2,
         .w = handle_size,
