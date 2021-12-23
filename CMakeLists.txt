@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.13)
-project(IVAC)
+project(IVAC C)
 
 add_executable(ivac
     src/gl_core_4_3.c
